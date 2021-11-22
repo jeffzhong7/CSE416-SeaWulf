@@ -2,7 +2,6 @@ import conversion as conv
 from dotenv import load_dotenv
 import json
 import os
-import pandas as pd
 from pathlib import Path
 import pyodbc
 import re
@@ -13,12 +12,11 @@ from shapely.ops import unary_union
 import sys
 
 
-DRIVER = ""
-SERVER = ""
-PORT = ""
-DATABASE = ""
-UID = ""
-PASS = ""
+STROKE = "#555555"
+STROKE_WIDTH = "2"
+STROKE_OPACITY = "1"
+COLORS = ["#400000", "#ff0000", "#ff8000", "#ffff00", "#008000", "#0080c0", "#004080", "#800080"]
+FILL_OPACITY = "0.5"
 
 def main():
     infile = sys.argv[1]
@@ -61,8 +59,15 @@ def main():
     for district in polygons.keys():
         print("Generating new borders for {} with {} precincts and {} geometries"
             .format(district, len(precincts[district]), len(polygons[district])))
+        props = {
+            'stroke': STROKE,
+            'stroke-width': STROKE_WIDTH,
+            'stroke-opacity': STROKE_OPACITY,
+            'fill': COLORS[ord(district) - 65], 
+            'fill-opacity': FILL_OPACITY
+        }
         try: 
-            conv.precincts_to_district(polygons[district], district, outfile)
+            conv.precincts_to_district_geom(polygons[district], props, district, outfile)
         except ValueError: 
             print(district + " failed to generate")
     
