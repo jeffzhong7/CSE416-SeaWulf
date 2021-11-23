@@ -1,9 +1,9 @@
 import json
+import math
 import os
-import pyodbc
+from pyproj import Geod
 import re
 import shapely
-from shapely.validation import make_valid
 from shapely.geometry import Polygon
 from shapely.ops import unary_union
 
@@ -11,7 +11,7 @@ from shapely.ops import unary_union
 STROKE = "#555555"
 STROKE_WIDTH = "2"
 STROKE_OPACITY = "1"
-COLORS = ["#400000", "#ff0000", "#ff8000", "#ffff00", "#008000", "#0080c0", "#004080", "#800080"]
+COLORS = ["#400000", "#ff0000", "#ff8000", "#ffff00", "#008000", "#0080c0", "#000080", "#800080"]
 FILL_OPACITY = "0.5"
 
 def make_json_feature_collection(polygon, properties):
@@ -25,7 +25,7 @@ def make_json_feature_collection(polygon, properties):
     
     return json.dumps(features, indent=4)
     
-def write_to_file(filename, content):
+def write_to_file(content, filename):
     os.makedirs(os.path.dirname(filename), exist_ok=True)
     with open(filename, 'w') as file:
         file.write(content)
@@ -66,19 +66,19 @@ def sql_to_polygon(polygon_string):
     
     return polygons
 
-def precincts_to_district_geom(polygons, properties, filename, output_dir):
+def precincts_to_district_geom(polygons):
     new_boundary = unary_union([
         polygon if polygon.is_valid else polygon.buffer(0) 
             for polygon in polygons
     ])
     
-    json_content = make_json_feature_collection(new_boundary, properties) 
-    output_file = output_dir + filename + ".geo.json"
-    write_to_file(output_file, json_content)
-    
     return new_boundary
     
+def polsby_popper(geometry):
+    geod = Geod(ellps="WGS84")
+    area, perimeter = geod.geometry_area_perimeter(geometry)
     
+    return (4 * math.pi * abs(area))/(perimeter ** 2)
        
 """
 def sql_to_geojson(polygon_string, properties, geometry_name, output_dir):

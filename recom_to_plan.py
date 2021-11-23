@@ -2,24 +2,17 @@ import conversion as conv
 from dotenv import load_dotenv
 import classes as cl
 import json
-import marshal
 import os
 from pathlib import Path
 import pickle
 import pyodbc
-import re
-import shapely
-import shapely.ops as ops
-from shapely.geometry import Polygon
-from shapely.ops import unary_union
-import sys
 import traceback
 
 
-def make_districting_plan(infile, outfile):
+def make_districting_plan(infile):
     districts = graph_to_dict(infile)
     
-    cursor = query_from_db(["ID", "geometry", "CD"], "Precint")
+    cursor = query_from_db(["ID", "geometry"], "Precint")
     data = cursor.fetchall()
     
     rows = dict()
@@ -27,19 +20,19 @@ def make_districting_plan(infile, outfile):
     for row in data:
         row_data = dict(zip(columns, row))
         rows[str(row_data["ID"])] = row_data
-        
+    
     for i in range(len(rows)):
         id = str(i)
-        district_of_precinct = rows[id]["CD"]
-        precincts = districts[district_of_precinct].precincts
-        precincts[id].geometry = conv.sql_to_polygon(rows[id]["geometry"])
-        # Note: sql_to_polygon may return a list, for multipolygons. 
+        for district in districts.keys():
+            if id in districts[district].precincts.keys():
+                precincts = districts[district].precincts
+                precincts[id].geometry = conv.sql_to_polygon(rows[id]["geometry"])
+                # Note: sql_to_polygon may return a list, for multipolygons. 
     
     for d in districts.keys():
         # print("Generating new borders for {} with {} precincts and {} geometries"
         #    .format(district, len(precincts[district]), len(polygons[district])))
         try:
-            props = conv.make_props(int(d) - 1)
             district = districts[d]
             polygons = []
             
@@ -47,16 +40,14 @@ def make_districting_plan(infile, outfile):
                 polygons.extend(
                     district.precincts[precinct].geometry
                 )
-            district.geometry = conv.precincts_to_district_geom(
-                polygons, props, d, outfile
-            )
+            district.geometry = conv.precincts_to_district_geom(polygons)
         except:
             print(traceback.print_exc())
     
     districting = cl.Districting(districts)
     
-    with open("dummy.districting", "wb") as f:
-        pickle.dump(districting, f)
+    # with open("{}.districting".format(infile), "wb") as f:
+        # pickle.dump(districting, f)
     
     return districting
         
@@ -67,7 +58,11 @@ def graph_to_dict(infile):
         data = json.load(f)
         nodes = data["nodes"]
         
-        cursor = query_from_db(["ID", "Black"], "Precint")
+        racial_types = ["Hispanic", "White", "Black"]
+        columns = ["ID"] 
+        columns += racial_types
+
+        cursor = query_from_db(columns, "Precint")
         data = cursor.fetchall()
         
         rows = dict()
@@ -83,11 +78,12 @@ def graph_to_dict(infile):
                 number=node["population"], 
                 type="total"
             )
-            black_pop = cl.Population(
-                number=rows[node_id]["Black"], 
-                type="black"
-            )
-            node_pop.subtypes["black"] = black_pop
+            
+            for race in racial_types:
+                node_pop.subtypes[race] = cl.Population(
+                    number=rows[node_id][race], 
+                    type=race
+                )
             
             precinct = cl.Precinct(node_pop)
             
@@ -99,14 +95,15 @@ def graph_to_dict(infile):
                     )
                 )
                 
-                districts[d].population.subtypes["black"] = cl.Population(
-                    number=0,
-                    type="black"
-                )
+                for race in racial_types: 
+                    districts[d].population.subtypes[race] = cl.Population(
+                        number=0,
+                        type=race
+                    )
                 
             districts[d].precincts[node["id"]] = precinct
             districts[d].population.number += node_pop.number
-            districts[d].population.subtypes["black"].number += black_pop.number
+            districts[d].population.subtypes[race].number += node_pop.subtypes[race].number
             
     return districts
     

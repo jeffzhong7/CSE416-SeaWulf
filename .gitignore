@@ -1,9 +1,9 @@
 # Testing stuff, don't push
 __pycache__
 dummy
-geojson_output
-recom_input
-recom_output
+geojson_output/*
+recom_input/*
+recom_output/*
 venv
 
 # Ignore config file
@@ -11,3 +11,6 @@ db_config.env
 
 # Dummy file, for local fetching
 *.districting
+
+# Profiler output
+*.log
