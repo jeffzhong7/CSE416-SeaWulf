@@ -3,7 +3,6 @@ from pathlib import Path
 from dotenv.main import load_dotenv
 import numpy as np
 import os
-
 import pyodbc
 import recom_to_plan
 import sys
@@ -59,7 +58,7 @@ def main():
     for plan in ensemble.keys():
         if (ensemble[plan].objective_score() > threshold): 
             good_plans[plan] = ensemble[plan]
-        if len(good_plans.keys() > count): 
+        if len(good_plans.keys()) > count: 
             break
 
     # Insert the plans to the database. 
@@ -74,11 +73,11 @@ def main():
         fields = [state, district]
         fields.extend(ensemble_quartiles[district])
 
-        insert_in_db(
-            "EnsembleData",
-            ["STATE", "CD", "MAX", "Q3", "MED", "Q1", "MIN"], 
-            fields
-        )
+        # insert_in_db(
+        #     "EnsembleData",
+        #     ["STATE", "CD", "MAX", "Q3", "MED", "Q1", "MIN"], 
+        #     fields
+        # )
 
     # with open("dummy.districting", "rb") as f:
         # districting_plan = pickle.load(f)
@@ -93,15 +92,14 @@ def main():
         json.dump(demo_proportions, f)
 
 def put_plan_in_db(plan): 
-    insert_in_db("Districtings", )
+    # insert_in_db("Districtings")
+    return
 
 def insert_in_db(table, columns, fields):
     dotenv_path = Path('db_config.env')
     load_dotenv(dotenv_path=dotenv_path)
     
-    DRIVER = os.getenv("DRIVER")
     SERVER = os.getenv("SERVER")
-    PORT = os.getenv("PORT")
     DATABASE = os.getenv("DATABASE")
     UID = os.getenv("UID")
     PASS = os.getenv("PASS")

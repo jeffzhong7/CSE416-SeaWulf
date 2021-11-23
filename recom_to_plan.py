@@ -2,6 +2,7 @@ import conversion as conv
 from dotenv import load_dotenv
 import classes as cl
 import json
+import mysql.connector
 import os
 from pathlib import Path
 import pickle
@@ -11,24 +12,18 @@ import traceback
 
 def make_districting_plan(infile):
     districts = graph_to_dict(infile)
+
+    cursor = query_from_db(["ID", "CD", "geometry"], "Precint")
     
-    cursor = query_from_db(["ID", "geometry"], "Precint")
-    data = cursor.fetchall()
-    
-    rows = dict()
-    columns = [column[0] for column in cursor.description]
-    for row in data:
-        row_data = dict(zip(columns, row))
-        rows[str(row_data["ID"])] = row_data
-    
-    for i in range(len(rows)):
-        id = str(i)
+    for row in cursor:
+        row_id = str(row["ID"])
+
         for district in districts.keys():
-            if id in districts[district].precincts.keys():
+            if row_id in districts[district].precincts.keys(): 
                 precincts = districts[district].precincts
-                precincts[id].geometry = conv.sql_to_polygon(rows[id]["geometry"])
+                precincts[row_id].geometry = conv.sql_to_polygon(row["geometry"])
                 # Note: sql_to_polygon may return a list, for multipolygons. 
-    
+
     for d in districts.keys():
         # print("Generating new borders for {} with {} precincts and {} geometries"
         #    .format(district, len(precincts[district]), len(polygons[district])))
@@ -55,22 +50,19 @@ def graph_to_dict(infile):
     districts = dict()
     
     with open(infile) as f:
-        data = json.load(f)
-        nodes = data["nodes"]
+        adj_graph = json.load(f)
+        nodes = adj_graph["nodes"]
         
         racial_types = ["Hispanic", "White", "Black"]
         columns = ["ID"] 
         columns += racial_types
-
         cursor = query_from_db(columns, "Precint")
-        data = cursor.fetchall()
         
         rows = dict()
-        columns = [column[0] for column in cursor.description]
-        for row in data:
-            row_data = dict(zip(columns, row))
-            rows[str(row_data["ID"])] = row_data
-        
+        for row in cursor:
+            row_id = str(row["ID"])
+            rows[row_id] = row
+
         for node in nodes: 
             d = str(ord(node["district"]) - 64)
             node_id = node["id"]
@@ -104,25 +96,32 @@ def graph_to_dict(infile):
             districts[d].precincts[node["id"]] = precinct
             districts[d].population.number += node_pop.number
             districts[d].population.subtypes[race].number += node_pop.subtypes[race].number
-            
+
     return districts
     
-def query_from_db(fields, table):
+def query_from_db(fields, table, condition=""):
     dotenv_path = Path('db_config.env')
     load_dotenv(dotenv_path=dotenv_path)
     
-    DRIVER = os.getenv("DRIVER")
     SERVER = os.getenv("SERVER")
-    PORT = os.getenv("PORT")
     DATABASE = os.getenv("DATABASE")
     UID = os.getenv("UID")
     PASS = os.getenv("PASS")
     
-    conn = pyodbc.connect("DRIVER={};SERVER={};DATABASE={};UID={};PWD={};MULTI_HOST=1".
-        format(DRIVER, ",".join([SERVER, PORT]), DATABASE, UID, PASS))
+    config = {
+        "user": UID,
+        "password": PASS, 
+        "host": SERVER,
+        "database": DATABASE, 
+    }
+
+    cnx = mysql.connector.connect(**config)
+    cursor = cnx.cursor(dictionary=True, buffered=True)
     
-    query = "SELECT {} FROM {}".format(", ".join(fields), table)
-    cursor = conn.execute(query)
+    query = "SELECT {} FROM {} {}".format(", ".join(fields), table, condition)
+    cursor.execute(query)
+
+    cnx.close()
     
     return cursor
     
