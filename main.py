@@ -44,20 +44,23 @@ def main():
 
     for district in district_data.keys():
         ensemble_quartiles[district] = [
-            max(district_data[district]),
-            np.quantile(district_data[district], 0.75),
-            np.quantile(district_data[district], 0.5),
+            min(district_data[district]),
             np.quantile(district_data[district], 0.25),
-            min(district_data[district])
+            np.quantile(district_data[district], 0.75),
+            max(district_data[district]),
+            np.quantile(district_data[district], 0.5)
         ]
 
     # Test on a small batch first. 
+    count = 3
     threshold = 0
 
     good_plans = dict()
     for plan in ensemble.keys():
         if (ensemble[plan].objective_score() > threshold): 
             good_plans[plan] = ensemble[plan]
+        if len(good_plans.keys() > count): 
+            break
 
     # Insert the plans to the database. 
     # (How? What information?)
@@ -67,7 +70,7 @@ def main():
     # Insert the ensemble quartiles for a state.
     # (Where?) 
     for district in ensemble_quartiles.keys():
-        state = "24"
+        state = "MD"
         fields = [state, district]
         fields.extend(ensemble_quartiles[district])
 
