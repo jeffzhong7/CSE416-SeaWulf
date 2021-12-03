@@ -12,7 +12,8 @@ def main():
     recoms = "recom_output"
     
     demo_proportions = dict()
-    
+    plan_measures = dict()
+
     # filename = sys.argv[1]
     # filepath = os.path.join(recoms, filename)
     # districting_plan = recom_to_plan.make_districting_plan(filepath)
@@ -81,6 +82,9 @@ def main():
 
     # with open("dummy.districting", "rb") as f:
         # districting_plan = pickle.load(f)
+
+    with open("post_output/plan_measures.json", "w") as f:
+        json.dump(plan_measures, f)
 
     with open("post_output/district_data.json", "w") as f: 
         json.dump(district_data, f)

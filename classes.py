@@ -37,8 +37,10 @@ class Districting():
         
         return dict(zip(self.districts.keys(), proportions))
     
-    def no_of_opportunity(self): 
-        return 0
+    def no_of_opportunity(self, demographic): 
+        self.demographic_proportions(demographic)
+        count = 0
+        return count
 
     def rep_seat_share(self):
         return 0
