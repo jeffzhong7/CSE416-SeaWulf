@@ -1,28 +1,33 @@
+import classes as cl
 import conversion as conv
 from dotenv import load_dotenv
-import classes as cl
 import json
 import mysql.connector
 import os
 from pathlib import Path
 import pickle
-import pyodbc
+import shapely.wkt
+import sys
 import traceback
 
 
-def make_districting_plan(infile):
-    districts = graph_to_dict(infile)
+def make_districting_plan(infile, state_id):
+    index = infile.split("-")[-1]
+    districts = graph_to_dict(index, infile, state_id)
 
-    cursor = query_from_db(["ID", "CD", "geometry"], "Precint")
-    
-    for row in cursor:
-        row_id = str(row["ID"])
+    precinct_prefix = state_id + "P"
+    # cursor = query_from_db(["id", "geometry"], "Precincts", "WHERE id LIKE \"{}\"".format(precinct_prefix + "%"))
 
+    pre_to_geom = dict()
+    db_queries_dir = "db_queries"
+    with open("{}/{}-geometry.json".format(db_queries_dir, state_id), "r") as f:
+        pre_to_geom = json.load(f)
+
+    for pre_id, row in pre_to_geom.items():
         for district in districts.keys():
-            if row_id in districts[district].precincts.keys(): 
+            if pre_id in districts[district].precincts.keys(): 
                 precincts = districts[district].precincts
-                precincts[row_id].geometry = conv.sql_to_polygon(row["geometry"])
-                # Note: sql_to_polygon may return a list, for multipolygons. 
+                precincts[pre_id].geometry = [ shapely.wkt.loads(row["geometry"]) ]
 
     for d in districts.keys():
         # print("Generating new borders for {} with {} precincts and {} geometries"
@@ -39,90 +44,132 @@ def make_districting_plan(infile):
         except:
             print(traceback.print_exc())
     
-    districting = cl.Districting(districts)
+    districting = cl.Districting(districts=districts)
     
     # with open("{}.districting".format(infile), "wb") as f:
-        # pickle.dump(districting, f)
+    #     pickle.dump(districting, f)
     
     return districting
         
-def graph_to_dict(infile):
-    districts = dict()
-    
+def graph_to_dict(index, infile, state_id):
     with open(infile) as f:
+        districts = dict()
+
+        precinct_prefix = state_id + "P"
+
         adj_graph = json.load(f)
         nodes = adj_graph["nodes"]
-        
-        racial_types = ["Hispanic", "White", "Black"]
-        columns = ["ID"] 
-        columns += racial_types
-        cursor = query_from_db(columns, "Precint")
-        
-        rows = dict()
-        for row in cursor:
-            row_id = str(row["ID"])
-            rows[row_id] = row
+
+        racial_types = ["ASIAN", "BLACK", "HISPA", "NATIV", "OTHER", "WHITE"]
+        # columns = ["TOTAL", "id"] 
+        # columns += racial_types
+        # cursor = query_from_db(columns, "Populations")
+
+
+        pre_to_pop = dict()
+        pre_to_vap = dict()
+        # for row in cursor:
+            # pre_to_pop[row["id"].split(precinct_prefix)[-1]] = row
+        # cursor = query_from_db(columns, "VotingAgePopulations")
+        # for row in cursor:
+            # pre_to_vap[row["id"].split(precinct_prefix)[-1]] = row
+
+        election = ["democraticVotes", "republicanVotes", "otherVotes"]
+        # columns = ["totalVotes", "id"]
+        # columns += election
+        # cursor = query_from_db(columns, "Elections")
+        pre_to_elec = dict()
+        # for row in cursor: 
+            # pre_to_elec[row["id"].split(precinct_prefix)[-1]] = row
+
+        db_queries_dir = "db_queries"
+        with open("{}/{}-pop.json".format(db_queries_dir, state_id), "r") as f:
+            pre_to_pop = json.load(f)
+        with open("{}/{}-vap.json".format(db_queries_dir, state_id), "r") as f:
+            pre_to_vap = json.load(f)
+        with open("{}/{}-election.json".format(db_queries_dir, state_id), "r") as f:
+            pre_to_elec = json.load(f)
 
         for node in nodes: 
             d = str(ord(node["district"]) - 64)
+            d = "{}PL{}D{}".format(state_id, index, d)
             node_id = node["id"]
             node_pop = cl.Population(
                 number=node["population"], 
-                type="total"
+                type="TOTAL"
             )
+            node_vap = cl.Population(
+                number=pre_to_vap[node_id]["TOTAL"],
+                type="TOTAL"
+            )
+            node_elec = cl.Population(
+                number=pre_to_elec[node_id]["totalVotes"],
+                type="TOTAL"
+            )
+            node_vote = node["voting_history"]
             
             for race in racial_types:
                 node_pop.subtypes[race] = cl.Population(
-                    number=rows[node_id][race], 
+                    number=pre_to_pop[node_id][race], 
                     type=race
                 )
+                node_vap.subtypes[race] = cl.Population(
+                    number=pre_to_vap[node_id][race], 
+                    type=race
+                )
+
+            for party in election:
+                node_elec.subtypes[party] = cl.Population(
+                    number=pre_to_elec[node_id][party],
+                    type=party
+                )
             
-            precinct = cl.Precinct(node_pop)
-            
+            precinct = cl.Precinct(population=node_pop, vap=node_vap, election=node_elec, voting_history=node_vote)
+
             if (d not in districts.keys()): 
                 districts[d] = cl.District(
                     population=cl.Population(
                         number=0, 
-                        type="total"
+                        type="TOTAL"
+                    ),
+                    vap=cl.Population(
+                        number=0,
+                        type="TOTAL"
+                    ),
+                    election=cl.Population(
+                        number=0,
+                        type="TOTAL"
                     )
                 )
                 
-                for race in racial_types: 
-                    districts[d].population.subtypes[race] = cl.Population(
+                for subtype in racial_types: 
+                    districts[d].population.subtypes[subtype] = cl.Population(
                         number=0,
-                        type=race
+                        type=subtype
+                    )
+
+                for subtype in racial_types: 
+                    districts[d].vap.subtypes[subtype] = cl.Population(
+                        number=0,
+                        type=subtype
+                    )
+
+                for party in election:
+                    districts[d].election.subtypes[party] = cl.Population(
+                        number=0,
+                        type=party
                     )
                 
             districts[d].precincts[node["id"]] = precinct
             districts[d].population.number += node_pop.number
-            districts[d].population.subtypes[race].number += node_pop.subtypes[race].number
+            districts[d].vap.number += node_vap.number
+            districts[d].election.number += node_elec.number
+            for subtype, pop in precinct.population.subtypes.items():
+                districts[d].population.subtypes[subtype].number += pop.number
+            for subtype, pop in precinct.vap.subtypes.items():
+                districts[d].vap.subtypes[subtype].number += pop.number
+            for party, pop in precinct.election.subtypes.items():
+                districts[d].election.subtypes[party].number += pop.number
 
     return districts
-    
-def query_from_db(fields, table, condition=""):
-    dotenv_path = Path('db_config.env')
-    load_dotenv(dotenv_path=dotenv_path)
-    
-    SERVER = os.getenv("SERVER")
-    DATABASE = os.getenv("DATABASE")
-    UID = os.getenv("UID")
-    PASS = os.getenv("PASS")
-    
-    config = {
-        "user": UID,
-        "password": PASS, 
-        "host": SERVER,
-        "database": DATABASE, 
-    }
-
-    cnx = mysql.connector.connect(**config)
-    cursor = cnx.cursor(dictionary=True, buffered=True)
-    
-    query = "SELECT {} FROM {} {}".format(", ".join(fields), table, condition)
-    cursor.execute(query)
-
-    cnx.close()
-    
-    return cursor
-    
     

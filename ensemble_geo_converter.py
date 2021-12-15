@@ -7,11 +7,11 @@ import sys
 
 
 def main():
-    recoms = "recom_output"
+    recoms = "recom_output/{}".format(sys.argv[1])
         
     for filename in os.listdir(recoms):
         filepath = os.path.join(recoms, filename)
-        districting_plan = recom_to_plan.make_districting_plan(filepath)
+        districting_plan = recom_to_plan.make_districting_plan(filepath, sys.argv[1])
         plan_to_geo.plan_to_geo(districting_plan, filename)
 
     # with open("dummy.districting", "rb") as f:

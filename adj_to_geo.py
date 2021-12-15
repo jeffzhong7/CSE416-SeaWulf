@@ -34,7 +34,7 @@ def main():
             else:
                 precincts[district] = [int(key)]
             
-    polygons = {k: [] for k in precincts.keys()}
+    polygons = { k: [] for k in precincts.keys() }
     
     conn = pyodbc.connect("DRIVER={};SERVER={};DATABASE={};UID={};PWD={};MULTI_HOST=1".
         format(DRIVER, ",".join([SERVER, PORT]), DATABASE, UID, PASS))
@@ -53,7 +53,7 @@ def main():
     for i in range(len(rows)):
         for district in precincts.keys():
             if i in precincts[district]:
-                polygons[district].extend(conv.sql_to_polygon(rows[i]['geometry']))
+                polygons[district].extend(shapely.wkt.loads(rows[i]['geometry']))
                 # sql_to_geojson(rows[i]['geometry'], str(i))
             
     for district in polygons.keys():

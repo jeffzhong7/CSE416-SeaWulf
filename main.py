@@ -37,6 +37,7 @@ def main():
     for district in districting_plan.districts.keys():
         district_data[district] = []
         ensemble_quartiles[district] = []
+        plan_measures[district] = []
 
     for district in district_data.keys():
         for plan in demo_proportions.keys():
@@ -53,7 +54,7 @@ def main():
 
     # Test on a small batch first. 
     count = 3
-    threshold = 0
+    threshold = 0.5
 
     good_plans = dict()
     for plan in ensemble.keys():
@@ -70,7 +71,7 @@ def main():
     # Insert the ensemble quartiles for a state.
     # (Where?) 
     for district in ensemble_quartiles.keys():
-        state = "MD"
+        state = "24"
         fields = [state, district]
         fields.extend(ensemble_quartiles[district])
 

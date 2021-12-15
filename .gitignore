@@ -1,5 +1,6 @@
 # Testing stuff, don't push
 __pycache__
+db_queries
 dummy
 post_output/*
 geojson_output/*
@@ -8,10 +9,11 @@ recom_output/*
 venv
 
 # Ignore config file
-db_config.env
+*.env
 
 # Dummy file, for local fetching
 *.districting
 
 # Profiler output
 *.log
+*.prof
